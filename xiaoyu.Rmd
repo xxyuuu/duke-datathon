@@ -1,0 +1,91 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(lubridate)
+library(parallel)
+library(readr)
+```
+
+```{r}
+edu = read_csv("education.csv")
+jobs = read_csv("jobs.csv")
+estate = read_csv("real_estate.csv")
+industry =read_csv("industries.csv")
+```
+
+
+```{r}
+library(tidyr)
+library(lubridate)
+library(zoo)
+avg_estate <- estate %>%
+  gather("month","price", 5:253)
+
+avg_estate$month = as.Date(as.yearmon(avg_estate$month))
+
+avg_estate <- avg_estate%>%
+  mutate(year = year(month))%>%
+  group_by(regionID,year,city,state,sizeRank)%>%
+  summarise(avg_price = mean(price))
+
+write.csv(avg_estate, file = "avg_estate.csv")
+```
+
+```{r}
+#avg_estate <- avg_estate%>%
+  #rename(I(year(year)) = year)
+
+
+avg_estate1115 <- avg_estate%>%
+  filter(year%in% 2011:2015)%>%
+  group_by(regionID,city,state,sizeRank)%>%
+  summarise(avg_price1115=mean(avg_price))
+
+  write.csv(avg_estate1115, file = "avg_estate1115.csv")
+```
+
+
+```{r}
+edu_avg_estate <- left_join(edu,avg_estate) %>% na.omit
+write.csv(edu_avg_estate, file = "edu_avg_estate.csv")
+```
+
+```{r}
+edu_avg_estate1115 <- left_join(edu,avg_estate1115)%>%na.omit
+write.csv(edu_avg_estate1115, file = "edu_avg_estate1115.csv")
+```
+
+
+```{r}
+simple_jobs = jobs %>% na.omit %>% select(id, company_name, created_date,last_checked_date, title, 
+                            city, state, zip, category_name)
+#jobs$created_date = mdy(jobs$created_date)
+
+jobs$created_date %>%year() %>% table()
+
+simple_jobs_interval <- simple_jobs
+simple_jobs$post_interval = as.period(simple_jobs$last_checked_date %--% simple_jobs$created_date)
+```
+```{r}
+simple_df<- jobs %>% select(id, company_name, title, 
+                            city, state, zip, category_name)
+postcounts <- simple_df %>% group_by(state,city) %>%
+  summarise(numpost = n())
+
+write.csv(postcounts, file = "postcounts.csv")
+```
+```{r}
+df_final_1115_2 <- df_final_1115%>%na.omit%>%
+  mutate(some_college = (college_less_than_year+college_more_than_year_no_degree+college_diploma)/population,
+         college_diploma=bachelor_degree/population,
+         grad_diploma = (master_degree+doctorate_degree+professional_degree)/population
+         )
+write.csv(df_final_1115_2, file = "df_final_1115_2.csv")
+
+poisson <- glmer(numpost ~ avg_price1115 + some_college + college_diploma + grad_diploma + population+ (1|state), data=df_final_1115_2, family = poisson())
+```
+
